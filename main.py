@@ -1,55 +1,42 @@
-import cv2
+import cv2 as cv
+import my_functions
 import numpy as np
-import mediapipe as mp
-import tensorflow as tf
-from tensorflow.keras.models import load_model
 
-mpHands = mp.solutions.hands
-hands = mpHands.Hands(max_num_hands=1, min_detection_confidence=0.7)
-mpDraw = mp.solutions.drawing_utils
 
-model = load_model('model/mp_hand_gesture')
+def main():
+    camera = cv.VideoCapture(1)
 
-f = open('model/gesture.names', 'r')
-classNames = f.read().split("\n")
-f.close()
+    while True:
+        ret, frame_BGR_original = camera.read()
+        frame_BGR_resized = my_functions.resize_image(frame_BGR_original, 100)
+        frame_BGR_resized_2 = frame_BGR_resized
+        # my_functions.open_in_location(frame_BGR_resized, "Original Frame Scaled", 0, 10)
 
-cap = cv2.VideoCapture(1)
+        frame_GRAY = cv.cvtColor(frame_BGR_resized, cv.COLOR_BGR2GRAY)
+        frame_GRAY_blured = cv.GaussianBlur(frame_GRAY, (5, 5), 0)
 
-while True:
-    _, frame = cap.read()
-    x, y, c = frame.shape
+        GRAY_corners = cv.goodFeaturesToTrack(frame_GRAY, 100, 0.4, 5)
+        corners_array = np.intp(GRAY_corners)
 
-    frameRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = hands.process(frameRGB)
+        # Display the corners found int he image
 
-    className = ''
+        for i in corners_array:
+            x, y = i.ravel()
+            cv.circle(frame_BGR_resized_2, (x, y), 3, [255, 255, 0], -1)
 
-    if result.multi_hand_landmarks:
-        landmarks = []
-        for handslms in result.multi_hand_landmarks:
-            for lm in handslms.landmark:
-                lmx = int(lm.x * x)
-                lmy = int(lm.y * y)
-                landmarks.append([lmx, lmy])
+        # frame_GRAY_cropped = my_functions.crop_image(frame_GRAY, corners_array)
+        frame_BGR_cropped = my_functions.crop_image(frame_BGR_resized, corners_array)
 
-            mpDraw.draw_landmarks(frame, handslms, mpHands.HAND_CONNECTIONS)
-            prediction = model.predict([landmarks])
-            classID = np.argmax(prediction)
-            className = classNames[classID]
-            cv2.putText(frame,
-                        className,
-                        (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 0, 255),
-                        2,
-                        cv2.LINE_AA)
+        my_functions.open_in_location(frame_BGR_resized_2, "Shi Tomasi Corners", 00, 10)
+        my_functions.open_in_location(frame_BGR_cropped, "Original Frame Cropped", 800, 10)
 
-    cv2.imshow("Output", frame)
+        key = cv.waitKey(1) & 0xff
+        if key == ord('q'):
+            break
 
-    if cv2.waitKey(1) == ord('q'):
-        break
+    camera.release()
+    cv.destroyAllWindows()
 
-cap.release()
-cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
